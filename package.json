@@ -1,0 +1,28 @@
+{
+  "name": "ai-chat",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.1",
+    "vue": "^3.5.32",
+    "vue-virtual-scroller": "^2.0.0-beta.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^24.12.2",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vue/tsconfig": "^0.9.1",
+    "tailwindcss": "^4.2.2",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.4",
+    "vue-tsc": "^3.2.6"
+  }
+}

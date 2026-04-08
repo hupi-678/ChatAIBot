@@ -1,0 +1,39 @@
+@import "tailwindcss";
+@import "highlight.js/styles/github-dark.css";
+
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  --md-code-bg: #f0f0f0;
+  --md-code-color: #d63384;
+  --md-blockquote-border: #c4b5fd;
+  --md-blockquote-color: #6b7280;
+  --md-blockquote-bg: #f9fafb;
+  --md-heading-color: #1f2937;
+  --md-table-border: #e5e7eb;
+  --md-table-header-bg: #f3f4f6;
+  --md-hr-color: #e5e7eb;
+  --md-reasoning-border: #c7d2fe;
+  --md-reasoning-color: #6b7280;
+}
+
+.dark {
+  --md-code-bg: #374151;
+  --md-code-color: #f472b6;
+  --md-blockquote-border: #818cf8;
+  --md-blockquote-color: #94a3b8;
+  --md-blockquote-bg: #1e293b;
+  --md-heading-color: #f1f5f9;
+  --md-table-border: #475569;
+  --md-table-header-bg: #334155;
+  --md-hr-color: #475569;
+  --md-reasoning-border: #818cf8;
+  --md-reasoning-color: #94a3b8;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}

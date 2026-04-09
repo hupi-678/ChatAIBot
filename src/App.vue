@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import ChatInterface from './components/ChatInterface.vue'
+import HomeView from './view/home/index.vue'
 </script>
 
 <template>
-  <ChatInterface />
+  <HomeView />
 </template>

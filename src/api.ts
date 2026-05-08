@@ -58,9 +58,36 @@ export async function chatStream(messages: Message[], cb: StreamCallbacks) {
     const decoder = new TextDecoder()
     let buffer = ''
 
-    while (true) {
+    // Returns true when the [DONE] sentinel is encountered.
+    const handleLine = (line: string): boolean => {
+      const trimmed = line.trim()
+      if (!trimmed || !trimmed.startsWith('data:')) return false
+
+      const data = trimmed.slice(5).trim()
+      if (data === '[DONE]') return true
+
+      try {
+        const parsed = JSON.parse(data)
+        const delta = parsed.choices?.[0]?.delta
+        if (delta?.content) onChunk(delta.content)
+        if (delta?.reasoning_content && onReasoning) onReasoning(delta.reasoning_content)
+      } catch {
+        // skip malformed SSE chunks
+      }
+      return false
+    }
+
+    let finished = false
+    while (!finished) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        // Flush any bytes still held inside the decoder, then process the
+        // trailing partial line (some servers omit the final newline).
+        buffer += decoder.decode()
+        if (buffer) handleLine(buffer)
+        buffer = ''
+        break
+      }
 
       buffer += decoder.decode(value, { stream: true })
 
@@ -68,22 +95,9 @@ export async function chatStream(messages: Message[], cb: StreamCallbacks) {
       buffer = lines.pop() ?? ''
 
       for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed || !trimmed.startsWith('data:')) continue
-
-        const data = trimmed.slice(5).trim()
-        if (data === '[DONE]') {
-          onDone()
-          return
-        }
-
-        try {
-          const parsed = JSON.parse(data)
-          const delta = parsed.choices?.[0]?.delta
-          if (delta?.content) onChunk(delta.content)
-          if (delta?.reasoning_content && onReasoning) onReasoning(delta.reasoning_content)
-        } catch {
-          // skip malformed SSE chunks
+        if (handleLine(line)) {
+          finished = true
+          break
         }
       }
     }

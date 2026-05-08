@@ -35,7 +35,7 @@ const {
 
 const { mode: themeMode, toggleTheme } = useTheme()
 
-const { isListening, interimText, isSupported: speechSupported, toggle: toggleSpeech } =
+const { isListening, interimText, speechError, isSupported: speechSupported, toggle: toggleSpeech } =
   useSpeechInput((text) => {
     inputText.value += text
   })
@@ -90,6 +90,7 @@ const { isListening, interimText, isSupported: speechSupported, toggle: toggleSp
         :is-listening="isListening"
         :interim-text="interimText"
         :speech-supported="speechSupported"
+        :speech-error="speechError"
         @keydown="handleKeydown"
         @send="sendMessage"
         @abort="abortRequest"

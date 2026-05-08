@@ -35,6 +35,27 @@ md.renderer.rules.fence = (tokens, idx) => {
   )
 }
 
-export function renderMarkdown(content: string): string {
-  return md.render(content)
+// Private Use Area sentinel — safe through markdown-it/highlight.js because
+// they never touch these codepoints, and the chance of it appearing in real
+// content is effectively zero.
+const CURSOR_MARKER = '\uE0F0STREAMCURSOR\uE0F1'
+const CURSOR_REGEX = new RegExp(CURSOR_MARKER, 'g')
+const CURSOR_HTML = '<span class="stream-cursor" aria-hidden="true"></span>'
+
+export function renderMarkdown(content: string, streaming = false): string {
+  // For streaming, append a unique marker at the end of the raw content so
+  // markdown-it naturally places it inside whatever element contains the last
+  // character (paragraph, list item, quote, heading, etc.). We then swap the
+  // marker with the cursor span, giving an inline cursor right after the
+  // last visible character instead of dangling on a new line below.
+  const input = streaming ? content + CURSOR_MARKER : content
+  let html = md.render(input)
+  if (streaming) {
+    if (html.includes(CURSOR_MARKER)) {
+      html = html.replace(CURSOR_REGEX, CURSOR_HTML)
+    } else {
+      html += CURSOR_HTML
+    }
+  }
+  return html
 }

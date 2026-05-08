@@ -5,6 +5,7 @@ defineProps<{
   isListening: boolean
   interimText: string
   speechSupported: boolean
+  speechError: string
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +21,9 @@ const emit = defineEmits<{
   <footer class="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 transition-colors">
     <div v-if="isListening && interimText" class="max-w-3xl mx-auto mb-1.5">
       <span class="text-xs text-indigo-400 dark:text-indigo-300 animate-pulse">正在识别: {{ interimText }}</span>
+    </div>
+    <div v-if="speechError" class="max-w-3xl mx-auto mb-1.5">
+      <span class="text-xs text-red-500 dark:text-red-400">{{ speechError }}</span>
     </div>
 
     <div class="flex items-end gap-2 max-w-3xl mx-auto">

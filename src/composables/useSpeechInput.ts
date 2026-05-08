@@ -14,11 +14,12 @@ type Recognizer = {
 const SpeechRecognitionCtor: (new () => Recognizer) | undefined =
   (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
 
-const AUTO_STOP_MS = 3000
+const AUTO_STOP_MS = 5000
 
 export function useSpeechInput(onFinal: (text: string) => void) {
   const isListening = ref(false)
   const interimText = ref('')
+  const speechError = ref('')
   const isSupported = !!SpeechRecognitionCtor
 
   let recognition: Recognizer | null = null
@@ -38,6 +39,8 @@ export function useSpeechInput(onFinal: (text: string) => void) {
 
   function start() {
     if (!SpeechRecognitionCtor || isListening.value) return
+
+    speechError.value = ''
 
     recognition = new SpeechRecognitionCtor()
     recognition.lang = 'zh-CN'
@@ -62,12 +65,36 @@ export function useSpeechInput(onFinal: (text: string) => void) {
       resetAutoStop()
     }
 
-    recognition.onerror = () => stop()
+    recognition.onerror = (e: any) => {
+      if (e.error === 'not-allowed') {
+        speechError.value = '麦克风权限未授权'
+      } else if (e.error === 'no-speech') {
+        speechError.value = '未检测到语音'
+      } else if (e.error !== 'aborted') {
+        speechError.value = `语音识别出错: ${e.error || '未知错误'}`
+      }
+      stop()
+    }
 
+    // Chrome fires onend prematurely even with continuous:true.  If our
+    // auto-stop timer is still running (the user hasn't been silent long
+    // enough), restart recognition immediately.
     recognition.onend = () => {
+      if (autoStopTimer) {
+        // Premature end — Chrome quirk. Restart immediately.
+        clearAutoStop()
+        try {
+          recognition?.start()
+          resetAutoStop()
+        } catch {
+          // Restart failed, give up.
+          isListening.value = false
+          interimText.value = ''
+        }
+        return
+      }
       isListening.value = false
       interimText.value = ''
-      clearAutoStop()
     }
 
     recognition.start()
@@ -76,11 +103,11 @@ export function useSpeechInput(onFinal: (text: string) => void) {
   }
 
   function stop() {
+    clearAutoStop()
     recognition?.stop()
     recognition = null
     isListening.value = false
     interimText.value = ''
-    clearAutoStop()
   }
 
   function toggle() {
@@ -89,5 +116,5 @@ export function useSpeechInput(onFinal: (text: string) => void) {
 
   onBeforeUnmount(() => stop())
 
-  return { isListening, interimText, isSupported, toggle, stop }
+  return { isListening, interimText, speechError, isSupported, toggle, stop }
 }

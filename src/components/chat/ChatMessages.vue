@@ -16,19 +16,45 @@ defineProps<{
 
 const scrollerRef = ref<InstanceType<typeof DynamicScroller> | null>(null)
 
-const copiedIdx = ref<number | null>(null)
+// Use the message's globally unique scroller id (which embeds activeId) so the
+// "已复制" badge does not leak onto a same-index message in another conversation.
+const copiedId = ref<string | null>(null)
+
+// Distance from the bottom (px) below which we still consider the user "at the
+// bottom" and auto-follow new content. Above this, we stay put so the user
+// can read older content without getting yanked back down each frame.
+const STICK_THRESHOLD = 120
+
+function getScrollEl(): HTMLElement | null {
+  const inst = scrollerRef.value as { $el?: HTMLElement } | null
+  return inst?.$el ?? null
+}
+
+function isNearBottom(): boolean {
+  const el = getScrollEl()
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= STICK_THRESHOLD
+}
 
 function scrollToBottom() {
   ;(scrollerRef.value as { scrollToBottom?: () => void } | null)?.scrollToBottom?.()
 }
 
-defineExpose({ scrollToBottom })
+// Only auto-scroll while the user is still pinned near the bottom; otherwise
+// leave them alone so manual scroll-up stays sticky during streaming.
+function scrollToBottomIfNear() {
+  if (isNearBottom()) scrollToBottom()
+}
 
-async function copyMessage(content: string, idx: number) {
+defineExpose({ scrollToBottom, scrollToBottomIfNear })
+
+async function copyMessage(content: string, id: string) {
   try {
     await navigator.clipboard.writeText(content)
-    copiedIdx.value = idx
-    setTimeout(() => { copiedIdx.value = null }, 1500)
+    copiedId.value = id
+    setTimeout(() => {
+      if (copiedId.value === id) copiedId.value = null
+    }, 1500)
   } catch { /* clipboard API may fail in insecure contexts */ }
 }
 
@@ -37,10 +63,12 @@ function handleCodeCopy(e: MouseEvent) {
   if (!btn) return
   const wrapper = btn.closest('.code-block-wrapper')
   const code = wrapper?.querySelector('pre code')?.textContent ?? ''
-  navigator.clipboard.writeText(code).then(() => {
-    btn.textContent = '已复制!'
-    setTimeout(() => { btn.textContent = '复制' }, 1500)
-  })
+  navigator.clipboard.writeText(code)
+    .then(() => {
+      btn.textContent = '已复制!'
+      setTimeout(() => { btn.textContent = '复制' }, 1500)
+    })
+    .catch(() => { /* ignore clipboard failure */ })
 }
 
 function formatTime(ts: number): string {
@@ -106,7 +134,10 @@ function formatTime(ts: number): string {
                       class="text-sm"
                     >
                       <div class="text-xs text-indigo-400 font-medium mb-1">💭 推理中...</div>
-                      <div class="reasoning-body markdown-body" v-html="renderMarkdown(item.reasoning)" />
+                      <div
+                        class="reasoning-body markdown-body"
+                        v-html="renderMarkdown(item.reasoning, isLoading && item._idx === activeMessages.length - 1)"
+                      />
                     </div>
                     <details v-else class="mb-2">
                       <summary class="cursor-pointer text-xs text-indigo-400 hover:text-indigo-500 select-none py-0.5">
@@ -119,7 +150,7 @@ function formatTime(ts: number): string {
                   <div
                     v-if="item.content"
                     class="markdown-body"
-                    v-html="renderMarkdown(item.content)"
+                    v-html="renderMarkdown(item.content, isLoading && item._idx === activeMessages.length - 1)"
                   />
 
                   <span
@@ -134,26 +165,21 @@ function formatTime(ts: number): string {
                     </span>
                   </span>
                 </template>
-
-                <span
-                  v-if="item.role === 'assistant' && isLoading && item._idx === activeMessages.length - 1 && item.content"
-                  class="inline-block w-0.5 h-4 bg-gray-400 align-text-bottom ml-0.5 animate-pulse"
-                />
               </div>
 
               <button
                 v-if="item.role === 'assistant' && item.content && !(isLoading && item._idx === activeMessages.length - 1)"
                 class="flex items-center gap-1 mt-1 px-1.5 py-0.5 text-[11px] text-gray-400 hover:text-gray-600 rounded opacity-0 group-hover/msg:opacity-100 transition-opacity"
-                @click="copyMessage(item.content, item._idx)"
+                @click="copyMessage(item.content, item.id)"
               >
-                <svg v-if="copiedIdx !== item._idx" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <svg v-if="copiedId !== item.id" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <rect x="9" y="9" width="13" height="13" rx="2" />
                   <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
                 </svg>
                 <svg v-else class="w-3 h-3 text-green-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                <span>{{ copiedIdx === item._idx ? '已复制' : '复制' }}</span>
+                <span>{{ copiedId === item.id ? '已复制' : '复制' }}</span>
               </button>
 
               <span class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 px-1">{{ formatTime(item.timestamp) }}</span>
@@ -322,6 +348,23 @@ function formatTime(ts: number): string {
   font-size: 0.9em;
   border-left: 2px solid var(--md-reasoning-border);
   padding-left: 0.6em;
+}
+
+:deep(.stream-cursor) {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: currentColor;
+  border-radius: 1px;
+  opacity: 0.55;
+  animation: stream-cursor-blink 1.1s ease-in-out infinite;
+}
+
+@keyframes stream-cursor-blink {
+  0%, 100% { opacity: 0.1; }
+  50% { opacity: 0.55; }
 }
 
 .scroller-container :deep(.vue-recycle-scroller__item-wrapper) {
